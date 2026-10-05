@@ -1,13 +1,39 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { getCurrentUser, logout } from "../services/authService";
 
 const Navbar = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [currentUser, setCurrentUser] = useState(getCurrentUser());
+
+    useEffect(() => {
+        const syncUser = () => {
+            setCurrentUser(getCurrentUser());
+        };
+
+        syncUser();
+        window.addEventListener("auth-change", syncUser);
+        window.addEventListener("storage", syncUser);
+        return () => {
+            window.removeEventListener("auth-change", syncUser);
+            window.removeEventListener("storage", syncUser);
+        };
+    }, [location.pathname]);
+
+    const handleMyTicketsClick = () => {
+        if (!currentUser) {
+            navigate("/login", { state: { from: "/my-bookings" } });
+        } else {
+            navigate("/my-bookings");
+        }
+    };
 
     return (
         <nav
             className="
                 fixed top-0 left-0 w-full z-50
-                bg-[#2C0A0E]/80
+                bg-[#180507]/90
                 backdrop-blur-xl
                 border-b border-[#2A1A1A]
                 px-6 lg:px-12
@@ -25,12 +51,13 @@ const Navbar = () => {
                     font-bold
                     tracking-wide
                     select-none
+                    flex items-center gap-2
                 "
                 style={{
                     fontFamily: "'Playfair Display', serif",
                 }}
             >
-                CGV CINEMAS
+                <span>🎬</span> CGV CINEMAS
             </div>
 
             {/* Nav Links */}
@@ -72,7 +99,7 @@ const Navbar = () => {
                 </span>
 
                 <span
-                    onClick={() => navigate("/my-bookings")}
+                    onClick={handleMyTicketsClick}
                     className="
                         text-white/80
                         text-sm
@@ -89,34 +116,61 @@ const Navbar = () => {
                     My Tickets
                 </span>
 
-                {/* Logout Button */}
-                <button
-                    onClick={() => {
-                        localStorage.removeItem("token");
-                        navigate("/login");
-                    }}
-                    className="
-                        ml-2
-                        px-5 py-2
-                        rounded-full
-                        bg-[#E50914]
-                        text-white
-                        text-sm
-                        font-medium
-                        tracking-[0.5px]
-                        transition-all duration-200
-                        hover:bg-[#C8000F]
-                        hover:scale-[1.03]
-                        focus:outline-none
-                        focus:ring-2
-                        focus:ring-[#F5C518]
-                    "
-                    style={{
-                        fontFamily: "'DM Sans', sans-serif",
-                    }}
-                >
-                    Logout
-                </button>
+                {/* User info & Auth button */}
+                {currentUser ? (
+                    <div className="flex items-center gap-3 ml-2">
+                        <span className="text-xs text-[#facc15] font-semibold bg-[#facc15]/10 border border-[#facc15]/20 px-3 py-1 rounded-full">
+                            👤 {currentUser.username}
+                        </span>
+                        <button
+                            onClick={() => {
+                                logout();
+                                navigate("/login");
+                            }}
+                            className="
+                                px-4 py-1.5
+                                rounded-full
+                                bg-[#E50914]
+                                text-white
+                                text-xs
+                                font-semibold
+                                tracking-[0.5px]
+                                transition-all duration-200
+                                hover:bg-[#C8000F]
+                                hover:scale-[1.03]
+                                focus:outline-none
+                            "
+                            style={{
+                                fontFamily: "'DM Sans', sans-serif",
+                            }}
+                        >
+                            Logout
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => navigate("/login")}
+                        className="
+                            ml-2
+                            px-5 py-2
+                            rounded-full
+                            bg-[#E50914]
+                            text-white
+                            text-sm
+                            font-medium
+                            tracking-[0.5px]
+                            transition-all duration-200
+                            hover:bg-[#C8000F]
+                            hover:scale-[1.03]
+                            focus:outline-none
+                        "
+                        style={{
+                            fontFamily: "'DM Sans', sans-serif",
+                        }}
+                    >
+                        Sign In
+                    </button>
+                )}
             </div>
         </nav>
     );

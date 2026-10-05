@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Validated
@@ -17,5 +18,11 @@ public interface PaymentApi {
     ResponseEntity<ApiResponse<Payment>> create(@RequestBody Map<String, Object> req);
 
     @PostMapping("/success")
-    ResponseEntity<ApiResponse<String>> success(@RequestBody Map<String, Object> req);
+    ResponseEntity<ApiResponse<Object>> success(@RequestBody Map<String, Object> req);
+
+    @GetMapping("/user/{userId}")
+    ResponseEntity<ApiResponse<List<Payment>>> getPaymentsByUser(@PathVariable Integer userId);
+
+    @GetMapping("/{id}")
+    ResponseEntity<ApiResponse<Payment>> getPaymentById(@PathVariable Integer id);
 }

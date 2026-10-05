@@ -84,33 +84,35 @@ public class SeatServiceImpl implements SeatService {
 
     @Override
     public List<SeatDTO> getSeatsByShowtime(Integer showtimeId) {
-
         Showtime showtime = showtimeRepository.findById(showtimeId)
-                .orElseThrow(() -> new RuntimeException("Showtime not found"));
+                .orElseThrow(() -> new RuntimeException("Showtime not found with id: " + showtimeId));
+
+        if (showtime.getRoom() == null) {
+            return List.of();
+        }
 
         Integer roomId = showtime.getRoom().getId();
-
         List<Seat> seats = seatRepository.findByRoomId(roomId);
 
         return seats.stream().map(seat -> {
-
             boolean booked = ticketRepository
                     .existsBySeatIdAndBooking_Showtime_Id(seat.getId(), showtimeId);
 
             boolean locked = seatLockRepository
-                    .existsBySeatIdAndShowtimeId(seat.getId(), showtimeId);
+                    .findActiveLock(seat.getId(), showtimeId).isPresent();
 
-            boolean vip = seat.getSeatNumber().startsWith("C")
-                    || seat.getSeatNumber().startsWith("D");
+            boolean vip = seat.getSeatNumber() != null && (
+                    seat.getSeatNumber().startsWith("C") || seat.getSeatNumber().startsWith("D")
+            );
 
             return new SeatDTO(
                     seat.getId(),
                     seat.getSeatNumber(),
+                    roomId,
                     booked,
                     locked,
                     vip
             );
-
         }).toList();
     }
 }

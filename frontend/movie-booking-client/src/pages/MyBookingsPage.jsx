@@ -1,8 +1,102 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getBookingsByUser } from "../services/bookingService.js";
+import { getCurrentUser } from "../services/authService.js";
 
 function MyBookingsPage() {
     const navigate = useNavigate();
-    const tickets = JSON.parse(localStorage.getItem("myTickets") || "[]").reverse();
+    const currentUser = getCurrentUser();
+    const [tickets, setTickets] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!currentUser?.id) {
+            setTickets([]);
+            return;
+        }
+
+        const userTicketKey = `myTickets_${currentUser.id}`;
+        const localTickets = JSON.parse(localStorage.getItem(userTicketKey) || "[]").reverse();
+
+        const fetchRemote = async () => {
+            try {
+                setLoading(true);
+                const res = await getBookingsByUser(currentUser.id);
+                const list = Array.isArray(res) ? res : (res?.data || []);
+                if (list.length > 0) {
+                    const mapped = list.map(b => ({
+                        id: b.id,
+                        ticketCode: `CGV-${b.id}-2026`,
+                        showtimeId: b.showtime?.id,
+                        movieTitle: b.showtime?.movie?.title || "Phim CGV Cinemas",
+                        roomName: b.showtime?.room?.name || `Phòng ${b.showtime?.room?.id || 1}`,
+                        startTime: b.showtime?.startTime ? new Date(b.showtime.startTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "19:30",
+                        showDate: b.showtime?.startTime ? new Date(b.showtime.startTime).toLocaleDateString("vi-VN") : "Gần đây",
+                        seats: ["Ghế đã xác nhận"],
+                        totalPrice: 120000,
+                        paymentMethod: "VIETQR",
+                        bookedAt: b.bookingTime ? new Date(b.bookingTime).toLocaleString("vi-VN") : "Gần đây"
+                    }));
+                    const combined = [...localTickets];
+                    mapped.forEach(m => {
+                        if (!combined.some(c => c.id === m.id)) {
+                            combined.push(m);
+                        }
+                    });
+                    setTickets(combined);
+                } else {
+                    setTickets(localTickets);
+                }
+            } catch (err) {
+                console.warn("Could not fetch remote bookings:", err);
+                setTickets(localTickets);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRemote();
+    }, [currentUser?.id]);
+
+    if (!currentUser) {
+        return (
+            <div style={{
+                background: "#080808",
+                minHeight: "100vh",
+                color: "#fff",
+                fontFamily: "'Outfit', sans-serif",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "40px 20px"
+            }}>
+                <div style={{ textAlign: "center", maxWidth: "420px" }}>
+                    <div style={{ fontSize: "64px", marginBottom: "20px" }}>🔒</div>
+                    <h2 style={{ fontSize: "26px", fontWeight: 700, marginBottom: "12px" }}>
+                        Vui lòng đăng nhập
+                    </h2>
+                    <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "28px", lineHeight: 1.6 }}>
+                        Bạn cần đăng nhập tài khoản để xem lịch sử vé và thông tin đặt chỗ của mình.
+                    </p>
+                    <button
+                        onClick={() => navigate("/login", { state: { from: "/my-bookings" } })}
+                        style={{
+                            background: "linear-gradient(135deg, #e50914, #b91c1c)",
+                            color: "#fff",
+                            border: "none",
+                            padding: "12px 32px",
+                            borderRadius: "9999px",
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            cursor: "pointer"
+                        }}
+                    >
+                        Đăng nhập ngay
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ background: "#080808", minHeight: "100vh", color: "#fff", fontFamily: "'Outfit', sans-serif", paddingBottom: "80px" }}>
@@ -14,140 +108,107 @@ function MyBookingsPage() {
                     to   { opacity: 1; transform: translateY(0); }
                 }
                 .ticket-card {
-                    background: #0f0f0f;
-                    border: 1px solid #1a1a1a;
-                    border-radius: 16px;
+                    background: #11080a;
+                    border: 1px solid #281417;
+                    border-radius: 18px;
                     overflow: hidden;
-                    box-shadow: rgba(0,0,0,0.3) 0 0 0 1px, rgba(0,0,0,0.2) 0 4px 8px, rgba(0,0,0,0.15) 0 8px 16px, rgba(255,255,255,0.02) 0 1px 0 inset;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
                     transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease;
                     animation: fadeUp 0.5s ease both;
+                    position: relative;
                 }
                 .ticket-card:hover {
-                    transform: translateY(-6px);
-                    box-shadow: rgba(229,9,20,0.2) 0 20px 40px, rgba(0,0,0,0.4) 0 0 0 1px;
+                    transform: translateY(-5px);
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 25px rgba(229,9,20,0.18);
+                    border-color: #3d1c21;
                 }
                 .seat-chip {
-                    background: rgba(245,197,24,0.1);
-                    border: 1px solid rgba(245,197,24,0.2);
+                    display: inline-flex;
+                    align-items: center;
+                    background: rgba(245,197,24,0.12);
+                    border: 1px solid rgba(245,197,24,0.3);
                     color: #facc15;
-                    font-size: 11px; font-weight: 600;
-                    padding: 3px 10px; border-radius: 9999px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    padding: 3px 10px;
+                    border-radius: 6px;
+                    letter-spacing: 0.5px;
                 }
                 .cta-btn {
                     background: linear-gradient(135deg, #e50914, #b91c1c);
-                    border: none; color: #fff;
-                    padding: 14px 40px; border-radius: 9999px;
-                    font-family: 'Outfit', sans-serif;
-                    font-size: 15px; font-weight: 600;
-                    cursor: pointer; letter-spacing: 0.3px;
-                    box-shadow: 0 8px 24px rgba(229,9,20,0.35);
-                    transition: all 0.2s ease;
+                    color: #fff",
+                    border: "none",
+                    padding: "12px 28px",
+                    borderRadius: "9999px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'Outfit', sans-serif",
+                    boxShadow: "0 8px 20px rgba(229,9,20,0.35)",
+                    transition: "transform 0.2s ease"
                 }
                 .cta-btn:hover {
-                    transform: scale(1.05);
-                    box-shadow: 0 12px 32px rgba(229,9,20,0.5);
+                    transform: scale(1.04);
                 }
-                .social-link {
-                    color: #6b7280; font-size: 13px;
-                    cursor: pointer; transition: color 0.2s;
-                    display: block; line-height: 2.2;
-                }
-                .social-link:hover { color: #e50914; }
             `}</style>
 
-            {/* ── HEADER ── */}
-            <div style={{ padding: "48px 52px 0", animation: "fadeUp 0.5s ease both" }}>
-                <button
-                    onClick={() => navigate("/")}
-                    style={{
-                        background: "none", border: "none",
-                        color: "#6b7280", fontSize: "13px",
-                        cursor: "pointer", marginBottom: "24px",
-                        display: "flex", alignItems: "center", gap: "6px",
-                        fontFamily: "'Outfit', sans-serif", padding: 0,
-                        transition: "color 0.2s"
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#fff"}
-                    onMouseLeave={e => e.currentTarget.style.color = "#6b7280"}
-                >
-                    ← Trang chủ
-                </button>
-
-                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
-                    <div>
-                        <h1 style={{
-                            fontFamily: "'Playfair Display', serif",
-                            fontSize: "2.8rem", fontWeight: 700,
-                            letterSpacing: "-0.5px", marginBottom: "8px"
-                        }}>
-                            My Tickets
-                        </h1>
-                        <div style={{ width: "60px", height: "3px", background: "linear-gradient(to right, #e50914, #f97316)", borderRadius: "2px" }} />
-                    </div>
-
-                    {tickets.length > 0 && (
-                        <div style={{
-                            background: "rgba(229,9,20,0.1)",
-                            border: "1px solid rgba(229,9,20,0.2)",
-                            borderRadius: "9999px",
-                            padding: "8px 20px",
-                            fontSize: "13px", color: "#f87171", fontWeight: 500
-                        }}>
-                            🎟 {tickets.length} vé đã đặt
-                        </div>
-                    )}
+            <div style={{ padding: "48px 52px 20px" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
+                    <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "36px", fontWeight: 700, margin: 0, letterSpacing: "-0.5px" }}>
+                        🎟 Vé đã đặt của tôi
+                    </h1>
+                    <span style={{ color: "#9ca3af", fontSize: "14px", fontWeight: 400 }}>
+                        {currentUser?.username ? `(Tài khoản: ${currentUser.username})` : ""} · {tickets.length} vé đã đặt
+                    </span>
                 </div>
+
+                <div style={{
+                    width: "48px", height: "3px",
+                    background: "linear-gradient(to right, #e50914, #f97316)",
+                    borderRadius: "9999px",
+                    marginTop: "16px", marginBottom: "40px"
+                }} />
             </div>
 
-            {/* ── EMPTY STATE ── */}
-            {tickets.length === 0 ? (
-                <div style={{
-                    display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center",
-                    padding: "120px 24px", textAlign: "center",
-                    animation: "fadeUp 0.6s ease both"
-                }}>
-                    <div style={{
-                        width: "96px", height: "96px",
-                        background: "rgba(229,9,20,0.08)",
-                        border: "1px solid rgba(229,9,20,0.15)",
-                        borderRadius: "50%",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "40px", marginBottom: "24px"
-                    }}>
-                        🎭
-                    </div>
-                    <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", fontWeight: 700, marginBottom: "10px" }}>
-                        Chưa có vé nào
+            {loading ? (
+                <div style={{ textAlign: "center", padding: "60px 0", color: "#9ca3af" }}>
+                    Đang tải danh sách vé...
+                </div>
+            ) : tickets.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "80px 24px", animation: "fadeUp 0.5s ease both" }}>
+                    <div style={{ fontSize: "64px", marginBottom: "20px", filter: "grayscale(0.5)" }}>🎟</div>
+                    <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "28px", fontWeight: 700, marginBottom: "12px" }}>
+                        Bạn chưa đặt vé nào
                     </h2>
-                    <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px", fontWeight: 300 }}>
-                        Bạn chưa đặt vé nào. Hãy khám phá các bộ phim đang chiếu!
+                    <p style={{ color: "#6b7280", fontSize: "15px", maxWidth: "380px", margin: "0 auto 32px", lineHeight: 1.6 }}>
+                        Hãy khám phá các bộ phim bom tấn đang chiếu và đặt ngay những vị trí đẹp nhất!
                     </p>
                     <button className="cta-btn" onClick={() => navigate("/movies")}>
-                        🎬 Xem phim ngay
+                        🎬 Khám phá phim ngay
                     </button>
                 </div>
             ) : (
-                <div style={{ maxWidth: "860px", margin: "48px auto 0", padding: "0 24px" }}>
-                    {tickets.map((ticket, index) => (
-                        <div
-                            key={ticket.id}
-                            className="ticket-card"
-                            style={{ marginBottom: "20px", animationDelay: `${index * 0.07}s` }}
-                        >
-                            {/* Top accent bar */}
-                            <div style={{ height: "3px", background: "linear-gradient(to right, #e50914, #f97316)" }} />
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+                    gap: "24px",
+                    padding: "0 52px"
+                }}>
+                    {tickets.map(ticket => (
+                        <div key={ticket.id} className="ticket-card">
+                            <div style={{ height: "4px", background: "linear-gradient(to right, #e50914, #f59e0b)" }} />
 
                             <div style={{ padding: "24px 28px" }}>
-
-                                {/* Header row */}
-                                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
                                     <div>
-                                        <div style={{ fontSize: "11px", color: "#4b5563", fontWeight: 500, letterSpacing: "1px", textTransform: "uppercase", marginBottom: "6px" }}>
-                                            Suất chiếu
+                                        <div style={{ fontSize: "11px", color: "#f87171", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", marginBottom: "4px" }}>
+                                            {ticket.ticketCode || `MÃ VÉ: #${ticket.id}`}
                                         </div>
-                                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", fontWeight: 700 }}>
-                                            🎬 Showtime #{ticket.showtimeId}
+                                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "20px", fontWeight: 700 }}>
+                                            🎬 {ticket.movieTitle || `Suất chiếu #${ticket.showtimeId}`}
+                                        </div>
+                                        <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                                            📍 {ticket.roomName || "Phòng chiếu CGV"} {ticket.startTime ? `· ${ticket.startTime}` : ""} {ticket.showDate ? `(${ticket.showDate})` : ""}
                                         </div>
                                     </div>
 
@@ -156,114 +217,71 @@ function MyBookingsPage() {
                                         border: "1px solid rgba(34,197,94,0.2)",
                                         color: "#4ade80",
                                         fontSize: "12px", fontWeight: 600,
-                                        padding: "6px 16px", borderRadius: "9999px",
-                                        display: "flex", alignItems: "center", gap: "6px",
-                                        letterSpacing: "0.5px"
+                                        padding: "4px 14px", borderRadius: "9999px",
+                                        display: "flex", alignItems: "center", gap: "6px"
                                     }}>
                                         ✓ Đã thanh toán
                                     </div>
                                 </div>
 
-                                {/* Divider dashed */}
-                                <div style={{ borderTop: "1px dashed #1f1f1f", margin: "0 0 20px" }} />
+                                <div style={{ borderTop: "1px dashed #2a1518", margin: "0 0 16px" }} />
 
-                                {/* Info grid */}
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
                                     <div>
-                                        <div style={{ fontSize: "11px", color: "#4b5563", fontWeight: 500, letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: "8px" }}>
+                                        <div style={{ fontSize: "11px", color: "#71717a", fontWeight: 600, letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: "6px" }}>
                                             Ghế đã chọn
                                         </div>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                            {ticket.seats.map(s => (
+                                            {Array.isArray(ticket.seats) ? ticket.seats.map(s => (
                                                 <span key={s} className="seat-chip">{s}</span>
-                                            ))}
+                                            )) : <span className="seat-chip">Đã xác nhận</span>}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div style={{ fontSize: "11px", color: "#4b5563", fontWeight: 500, letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: "8px" }}>
+                                        <div style={{ fontSize: "11px", color: "#71717a", fontWeight: 600, letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: "6px" }}>
                                             Tổng tiền
                                         </div>
                                         <div style={{
                                             fontFamily: "'Playfair Display', serif",
-                                            fontSize: "26px", fontWeight: 700,
-                                            color: "#facc15", letterSpacing: "-0.5px"
+                                            fontSize: "22px", fontWeight: 700,
+                                            color: "#facc15"
                                         }}>
-                                            {ticket.totalPrice?.toLocaleString("vi-VN")}đ
+                                            {ticket.totalPrice ? `${ticket.totalPrice.toLocaleString("vi-VN")}đ` : "120.000đ"}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Footer row */}
+                                {ticket.combos && ticket.combos.length > 0 && (
+                                    <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "16px", background: "rgba(255,255,255,0.03)", padding: "6px 10px", borderRadius: "6px" }}>
+                                        🍿 Bắp nước: <strong style={{ color: "#fff" }}>{ticket.combos.join(" + ")}</strong>
+                                    </div>
+                                )}
+
                                 <div style={{
                                     display: "flex", alignItems: "center",
                                     justifyContent: "space-between", flexWrap: "wrap", gap: "12px",
-                                    borderTop: "1px solid #141414", paddingTop: "16px"
+                                    borderTop: "1px solid #1f1214", paddingTop: "14px"
                                 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#4b5563", fontSize: "12px" }}>
-                                        <span>🕐</span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "12px" }}>
+                                        <span>🕐 Đặt lúc:</span>
                                         <span>{ticket.bookedAt}</span>
                                     </div>
 
-                                    <button
-                                        onClick={() => navigate("/movies")}
-                                        style={{
-                                            background: "rgba(229,9,20,0.08)",
-                                            border: "1px solid rgba(229,9,20,0.2)",
-                                            color: "#f87171",
-                                            padding: "8px 20px", borderRadius: "9999px",
-                                            fontSize: "12px", fontWeight: 600,
-                                            cursor: "pointer", fontFamily: "'Outfit', sans-serif",
-                                            transition: "all 0.2s ease", letterSpacing: "0.3px"
-                                        }}
-                                        onMouseEnter={e => {
-                                            e.currentTarget.style.background = "rgba(229,9,20,0.15)";
-                                            e.currentTarget.style.borderColor = "rgba(229,9,20,0.4)";
-                                        }}
-                                        onMouseLeave={e => {
-                                            e.currentTarget.style.background = "rgba(229,9,20,0.08)";
-                                            e.currentTarget.style.borderColor = "rgba(229,9,20,0.2)";
-                                        }}
-                                    >
-                                        🎬 Đặt thêm vé
-                                    </button>
+                                    <div style={{
+                                        fontSize: "11px", color: "#facc15",
+                                        background: "rgba(245,197,24,0.1)",
+                                        border: "1px solid rgba(245,197,24,0.2)",
+                                        padding: "3px 10px", borderRadius: "6px", fontWeight: 600
+                                    }}>
+                                        💳 {ticket.paymentMethod || "VIETQR"}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
-
-            {/* ── FOOTER ── */}
-            <footer style={{ background: "#0d0d0d", borderTop: "1px solid #141414", padding: "48px 48px 28px", marginTop: "80px" }}>
-                <div style={{ maxWidth: "960px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "40px", marginBottom: "32px" }}>
-                    <div>
-                        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "20px", color: "#e50914", marginBottom: "12px", fontWeight: 700 }}>
-                            CGV CINEMAS
-                        </div>
-                        <p style={{ color: "#6b7280", fontSize: "13px", lineHeight: 1.7 }}>
-                            Nền tảng đặt vé xem phim hiện đại, mang đến trải nghiệm giải trí đỉnh cao.
-                        </p>
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 600, marginBottom: "12px", fontSize: "14px", color: "#e5e7eb" }}>Liên hệ</div>
-                        <p style={{ color: "#6b7280", fontSize: "13px", lineHeight: 2.2 }}>
-                            📧 trung@cgv.com<br />
-                            📞 0942 457 198<br />
-                            📍 Hà Nội, Việt Nam
-                        </p>
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 600, marginBottom: "12px", fontSize: "14px", color: "#e5e7eb" }}>Mạng xã hội</div>
-                        {["→ Facebook", "→ Instagram", "→ YouTube"].map(s => (
-                            <span key={s} className="social-link">{s}</span>
-                        ))}
-                    </div>
-                </div>
-                <div style={{ textAlign: "center", color: "#374151", fontSize: "12px", borderTop: "1px solid #141414", paddingTop: "20px" }}>
-                    © 2026 CGV CINEMAS. All rights reserved.
-                </div>
-            </footer>
         </div>
     );
 }

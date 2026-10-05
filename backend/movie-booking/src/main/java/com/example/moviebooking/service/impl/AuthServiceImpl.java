@@ -45,17 +45,20 @@ public class AuthServiceImpl implements AuthService {
         String role = (request.getRole() == null || request.getRole().isBlank()) ? "USER" : request.getRole().trim().toUpperCase();
         user.setRole(role);
 
-        userRepository.save(user);
+        User saved = userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getUsername());
-        return new AuthResponse(token);
+        String token = jwtService.generateToken(saved.getUsername());
+        return new AuthResponse(token, saved.getId(), saved.getUsername(), saved.getRole());
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
-        String token = jwtService.generateToken(request.getUsername());
-        return new AuthResponse(token);
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        String token = jwtService.generateToken(user.getUsername());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getRole());
     }
 }

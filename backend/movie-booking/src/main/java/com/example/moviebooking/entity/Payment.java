@@ -22,8 +22,8 @@ public class Payment {
     private Double amount;
 
     private String status; // PENDING, SUCCESS, FAILED
+    private String paymentMethod; // VIETQR, MOMO, VNPAY, CARD
+    private String transactionCode;
 
     private LocalDateTime createdAt;
-
-
 }
